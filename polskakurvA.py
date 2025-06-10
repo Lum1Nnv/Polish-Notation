@@ -74,7 +74,6 @@ def infix_to_prefix(expression):
     tokens = tokenize(expression)
     return to_prefix(tokens)
 
-<<<<<<< HEAD
 
 def validate_expression(expr):
     # 1. Перевірка балансу дужок
@@ -109,13 +108,6 @@ def validate_expression(expr):
 
     return None  # якщо все ок
 
-=======
-# Обчислення алгебраїчного виразу з sympy
-import random
-from sympy import sympify, simplify, expand
-from sympy.core.sympify import SympifyError
-import re
->>>>>>> 77227cc861e0a608fe51d0bc60d61dd215b2d6ca
 
 def process_with_sympy(expr_str):
     try:
@@ -168,25 +160,18 @@ def process_with_sympy(expr_str):
 # Головна частина
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Двіжок для калькулятора')
-<<<<<<< HEAD
     parser.add_argument("--value", "-v", dest="value", type=str, default="x+2")
-=======
-    parser.add_argument("--value", "-v", dest="value", type=str, default="x^(1/2)")
->>>>>>> 77227cc861e0a608fe51d0bc60d61dd215b2d6ca
     parser.add_argument("--rnd_min", "-min", dest="rnd_min", type=float, default= -10)
     parser.add_argument("--rnd_max", "-max", dest="rnd_max", type=float, default= 10)
     args = parser.parse_args()
     rnd_min = (args.rnd_min)
     rnd_max = (args.rnd_max)
-<<<<<<< HEAD
     input_expr = args.value
 
     validation_error = validate_expression(input_expr)
     if validation_error:
         print(validation_error)
         exit(1)
-=======
->>>>>>> 77227cc861e0a608fe51d0bc60d61dd215b2d6ca
 
     input_expr = args.value
     print(f"Отримано вираз: {input_expr}")
@@ -196,3 +181,4 @@ if __name__ == '__main__':
 
     result = process_with_sympy(input_expr)
     print(result)
+    
