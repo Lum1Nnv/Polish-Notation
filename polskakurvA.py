@@ -4,7 +4,6 @@ from sympy.core.sympify import SympifyError
 import re
 import random
 
-
 # Пріоритети операторів
 precedence = {
     '+': 1,
@@ -25,18 +24,55 @@ def infix_to_prefix(expression):
 
     def tokenize(expr):
         tokens = []
-        current = ''
-        for char in expr:
-            if char.isalnum():  # буква або цифра
-                current += char
-            else:
-                if current:
-                    tokens.append(current)
-                    current = ''
-                if char in "+-*/%^()":
-                    tokens.append(char)
-        if current:
-            tokens.append(current)
+        i = 0
+        supported_functions = {'sin', 'cos', 'tan', 'cot', 'log'}
+
+        while i < len(expr):
+            if expr[i].isspace():
+                i += 1
+                continue
+
+            if expr[i].isalpha():
+                identifier = ''
+                while i < len(expr) and expr[i].isalpha():
+                    identifier += expr[i]
+                    i += 1
+                
+                if identifier in supported_functions and i < len(expr) and expr[i] == '(':
+                    i += 1
+                    count = 1
+                    arg = ''
+                    while i < len(expr) and count > 0:
+                        if expr[i] == '(':
+                            count += 1
+                        elif expr[i] == ')':
+                            count -= 1
+                        arg += expr[i] if count > 0 else ''
+                        i += 1
+                    # Рекурсивно обробляємо аргумент функції
+                    tokens.append(f"{identifier}({infix_to_prefix(arg)})")
+                else:
+                    tokens.append(identifier)
+                continue
+
+            if expr[i].isdigit() or expr[i] == '.':
+                num = ''
+                has_dot = False
+                while i < len(expr) and (expr[i].isdigit() or (expr[i] == '.' and not has_dot)):
+                    if expr[i] == '.':
+                        has_dot = True
+                    num += expr[i]
+                    i += 1
+                tokens.append(num)
+                continue
+
+            if expr[i] in "+-*/%^()":
+                tokens.append(expr[i])
+                i += 1
+                continue
+
+            raise ValueError(f"Невідомий символ: {expr[i]}")
+
         return tokens
 
     def to_prefix(tokens):
@@ -44,7 +80,9 @@ def infix_to_prefix(expression):
         vals = []
 
         for token in tokens:
-            if token.isalnum():
+            # Якщо токен є числом, змінною або функцією
+            if (token.isalnum() or re.match(r'^(sin|cos|tan|cot|log)\(.+\)$', token) or 
+                re.match(r'^-?\d*\.?\d*$', token)):
                 vals.append(token)
             elif token == '(':
                 ops.append(token)
@@ -54,7 +92,12 @@ def infix_to_prefix(expression):
                     b = vals.pop()
                     a = vals.pop()
                     vals.append(f"{op} {a} {b}")
-                ops.pop()
+                ops.pop()  # Видалити '('
+                # Якщо перед '(' була функція, обробляємо її
+                if ops and ops[-1] in {'sin', 'cos', 'tan', 'cot', 'log'}:
+                    func = ops.pop()
+                    arg = vals.pop()
+                    vals.append(f"{func}({arg})")
             elif is_operator(token):
                 while ops and ops[-1] != '(' and greater_precedence(ops[-1], token):
                     op = ops.pop()
@@ -62,21 +105,41 @@ def infix_to_prefix(expression):
                     a = vals.pop()
                     vals.append(f"{op} {a} {b}")
                 ops.append(token)
+            # Обробка функцій як операторів
+            elif token in {'sin', 'cos', 'tan', 'cot', 'log'}:
+                ops.append(token)
 
         while ops:
             op = ops.pop()
-            b = vals.pop()
-            a = vals.pop()
-            vals.append(f"{op} {a} {b}")
+            if op in {'sin', 'cos', 'tan', 'cot', 'log'}:
+                arg = vals.pop()
+                vals.append(f"{op}({arg})")
+            else:
+                b = vals.pop()
+                a = vals.pop()
+                vals.append(f"{op} {a} {b}")
 
         return vals[0]
 
-    tokens = tokenize(expression)
+
+    # Видаляємо зовнішні дужки, якщо вони є
+    expr = expression.strip()
+    if expr.startswith('(') and expr.endswith(')'):
+        count = 0
+        for i, char in enumerate(expr):
+            if char == '(':
+                count += 1
+            elif char == ')':
+                count -= 1
+            if count == 0 and i < len(expr) - 1:
+                break
+        else:
+            expr = expr[1:-1]
+
+    tokens = tokenize(expr)
     return to_prefix(tokens)
 
-
 def validate_expression(expr):
-    # 1. Перевірка балансу дужок
     stack = []
     for char in expr:
         if char == '(':
@@ -88,26 +151,21 @@ def validate_expression(expr):
     if stack:
         return "Помилка: незакрита дужка."
 
-    # 2. Порожні дужки
     if re.search(r'\(\s*\)', expr):
         return "Помилка: порожні дужки."
 
-    # 3. Подвійні оператори
     if re.search(r'[+\-*/%^]{2,}', expr):
         return "Помилка: два або більше операторів підряд."
 
-    # 4. Початок або кінець виразу — оператор
     if re.match(r'^[+\-*/%^]', expr.strip()) or re.search(r'[+\-*/%^]$', expr.strip()):
         return "Помилка: вираз починається або закінчується оператором."
 
-    # 5. Спроба символьного парсингу
     try:
         sympify(expr)
     except (SympifyError, SyntaxError):
         return "Помилка: синтаксична помилка у виразі."
 
-    return None  # якщо все ок
-
+    return None
 
 def process_with_sympy(expr_str):
     try:
@@ -125,15 +183,15 @@ def process_with_sympy(expr_str):
 
         else:
             print("У виразі є змінні:", ', '.join(map(str, free_syms)))
-            answer = input("Бажаєте ввести значення для змінних? (так/ні): ").strip().lower()
+            answer = input("Бажаєте ввести значення для змінних? (y/n): ").strip().lower()
 
             if answer in ['так', 'y', 'yes', 'т']:
-                method = input("Ввести значення вручну чи згенерувати випадково? (вручну/рандом): ").strip().lower()
+                method = input("Ввести значення вручну чи згенерувати випадково? (y/n): ").strip().lower()
                 values = {}
 
-                if method in ['рандом', 'random','r','р']:
+                if method in ['рандом', 'random', 'r', 'р', 'y', 'yes']:
                     for var in free_syms:
-                        val = random.uniform(rnd_min, rnd_max)  # змінити діапазон за бажанням
+                        val = random.uniform(rnd_min, rnd_max)
                         print(f"{var} = {val:.2f} (згенеровано)")
                         values[var] = val
                 else:
@@ -156,16 +214,15 @@ def process_with_sympy(expr_str):
     except SympifyError as e:
         return f"Помилка у виразі: {e}"
 
-
 # Головна частина
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Двіжок для калькулятора')
-    parser.add_argument("--value", "-v", dest="value", type=str, default="x+2")
-    parser.add_argument("--rnd_min", "-min", dest="rnd_min", type=float, default= -10)
-    parser.add_argument("--rnd_max", "-max", dest="rnd_max", type=float, default= 10)
+    parser.add_argument("--value", "-v", dest="value", type=str, default="sin(sin((2+x)*x))")
+    parser.add_argument("--rnd_min", "-min", dest="rnd_min", type=float, default=-10)
+    parser.add_argument("--rnd_max", "-max", dest="rnd_max", type=float, default=10)
     args = parser.parse_args()
-    rnd_min = (args.rnd_min)
-    rnd_max = (args.rnd_max)
+    rnd_min = args.rnd_min
+    rnd_max = args.rnd_max
     input_expr = args.value
 
     validation_error = validate_expression(input_expr)
@@ -173,12 +230,8 @@ if __name__ == '__main__':
         print(validation_error)
         exit(1)
 
-    input_expr = args.value
     print(f"Отримано вираз: {input_expr}")
-
     prefix_expr = infix_to_prefix(input_expr)
     print(f"Префіксна нотація: {prefix_expr}")
-
     result = process_with_sympy(input_expr)
     print(result)
-    
