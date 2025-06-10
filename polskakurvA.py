@@ -1,0 +1,148 @@
+import argparse
+from sympy import sympify, simplify, expand
+from sympy.core.sympify import SympifyError
+import re
+import random
+
+
+# Пріоритети операторів
+precedence = {
+    '+': 1,
+    '-': 1,
+    '*': 2,
+    '/': 2,
+    '^': 3,
+    '%': 3,
+}
+
+# Перетворення інфіксного виразу в префіксний
+def infix_to_prefix(expression):
+    def is_operator(token):
+        return token in precedence
+
+    def greater_precedence(op1, op2):
+        return precedence[op1] >= precedence[op2]
+
+    def tokenize(expr):
+        tokens = []
+        current = ''
+        for char in expr:
+            if char.isalnum():  # буква або цифра
+                current += char
+            else:
+                if current:
+                    tokens.append(current)
+                    current = ''
+                if char in "+-*/%^()":
+                    tokens.append(char)
+        if current:
+            tokens.append(current)
+        return tokens
+
+    def to_prefix(tokens):
+        ops = []
+        vals = []
+
+        for token in tokens:
+            if token.isalnum():
+                vals.append(token)
+            elif token == '(':
+                ops.append(token)
+            elif token == ')':
+                while ops and ops[-1] != '(':
+                    op = ops.pop()
+                    b = vals.pop()
+                    a = vals.pop()
+                    vals.append(f"{op} {a} {b}")
+                ops.pop()
+            elif is_operator(token):
+                while ops and ops[-1] != '(' and greater_precedence(ops[-1], token):
+                    op = ops.pop()
+                    b = vals.pop()
+                    a = vals.pop()
+                    vals.append(f"{op} {a} {b}")
+                ops.append(token)
+
+        while ops:
+            op = ops.pop()
+            b = vals.pop()
+            a = vals.pop()
+            vals.append(f"{op} {a} {b}")
+
+        return vals[0]
+
+    tokens = tokenize(expression)
+    return to_prefix(tokens)
+
+# Обчислення алгебраїчного виразу з sympy
+import random
+from sympy import sympify, simplify, expand
+from sympy.core.sympify import SympifyError
+import re
+
+def process_with_sympy(expr_str):
+    try:
+        if re.search(r'[+\-*/]{2,}', expr_str):
+            return "Помилка: два знаки оператора підряд."
+
+        expr = sympify(expr_str)
+        free_syms = expr.free_symbols
+
+        if expr.has('Divide') and expr.is_zero:
+            return "Помилка: ділення на нуль."
+
+        if len(free_syms) == 0:
+            return f"Результат: {expr.evalf()}"
+
+        else:
+            print("У виразі є змінні:", ', '.join(map(str, free_syms)))
+            answer = input("Бажаєте ввести значення для змінних? (так/ні): ").strip().lower()
+
+            if answer in ['так', 'y', 'yes', 'т']:
+                method = input("Ввести значення вручну чи згенерувати випадково? (вручну/рандом): ").strip().lower()
+                values = {}
+
+                if method in ['рандом', 'random','r','р']:
+                    for var in free_syms:
+                        val = random.uniform(rnd_min, rnd_max)  # змінити діапазон за бажанням
+                        print(f"{var} = {val:.2f} (згенеровано)")
+                        values[var] = val
+                else:
+                    for var in free_syms:
+                        val = input(f"Введіть значення для {var}: ").strip()
+                        try:
+                            values[var] = float(val)
+                        except ValueError:
+                            return f"Помилка: недійсне значення для {var}"
+
+                evaluated = expr.evalf(subs=values)
+                return f"Результат з підставленими значеннями: {evaluated}"
+
+            else:
+                if len(free_syms) == 1:
+                    return f"Спростили: {expand(expr)}"
+                else:
+                    return f"Спростили: {simplify(expr)}"
+
+    except SympifyError as e:
+        return f"Помилка у виразі: {e}"
+
+
+# Головна частина
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Двіжок для калькулятора')
+    parser.add_argument("--value", "-v", dest="value", type=str, default="x^(1/2)")
+    parser.add_argument("--rnd_min", "-min", dest="rnd_min", type=float, default= -10)
+    parser.add_argument("--rnd_max", "-max", dest="rnd_max", type=float, default= 10)
+    args = parser.parse_args()
+    rnd_min = (args.rnd_min)
+    rnd_max = (args.rnd_max)
+
+    input_expr = args.value
+    print(f"Отримано вираз: {input_expr}")
+
+    prefix_expr = infix_to_prefix(input_expr)
+    print(f"Префіксна нотація: {prefix_expr}")
+
+    result = process_with_sympy(input_expr)
+    print(result)
